@@ -1,24 +1,54 @@
 #include <Arduino.h>
 #include <DNSServer.h>
-#include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
 #include <LittleFS.h>
-#include <WiFiClient.h>
 #include <SoftwareSerial.h>
+#include <WiFiClient.h>
+#include <ESPAsyncWebServer.h>
 
+#define debug  // for serial debug messages
 
 String status = "";
 String buffer_space = "";
 String buffer_size = "";
-int buffer_state = 0;
 String page_size = "";
+String error_message = "";
 const byte DNS_PORT = 53;
-IPAddress apIP(192, 168, 4, 1);
+IPAddress apIP (192, 168, 4, 1);
 DNSServer dnsServer;
-ESP8266WebServer server(80);
-SoftwareSerial s(D4, 1);
+AsyncWebServer server (80);
+SoftwareSerial s (D4, D3);
 
-#define buffer_pin D1
+String processor (const String &template_variable) {
+  if (template_variable == "ERROR_MESSAGE")
+    return error_message;
+  return String ();
+}
+void check_status() {
+  status = "";
+  s.print ("\x1B.O");
+  char st = s.read (); // read until one byte at a time
+  int timeout = 0  ;
+  while (st != '\r' && timeout <2000) {// read until \r one byte at a time check for timeout
+    ++timeout ;
+    if (isDigit (st)) {
+      status += st; // concat value to buffer_space
+    }
+    st = s.read (); // reset byte value
+  }
+  if (timeout == 2000) {
+ //-----------------------------------------------------------------------------//
+ //---------------------Disable santity check here (chnage "offiline" to 8 )-----//   
+  //  status = "offline";
+     status = 8;
+  //-----------------------------------------------------------------------------//
+  //-----------------------------------------------------------------------------//   
+  }
+  #ifdef debug
+  Serial.print ("Status : " + status + " -> ");
+  #endif
+}
 
 void check_buffer_size() {  
   buffer_size = "";
@@ -30,6 +60,9 @@ void check_buffer_size() {
     }
     sz = s.read (); // reset byte value
   }
+  #ifdef debug
+  Serial.println ("Buffer size : " + buffer_size);
+  #endif
 }
 
 void check_buffer_space() {
@@ -42,24 +75,9 @@ void check_buffer_space() {
     }
     sp = s.read (); // reset byte value
   }
-}
-
-void check_status() {
-  status = "";
-  s.print ("\x1B.O");
-  char st = s.read (); // read until one byte at a time
-  int timeout = 0  ;
-  while (st != '\r' && timeout <20) {// read until \r one byte at a time check for timeout
-    delay (10);
-    ++timeout ;
-    if (isDigit (st)) {
-      status += st; // concat value to buffer_space
-    }
-    st = s.read (); // reset byte value
-  }
-  if (timeout == 20) {
-    status = "offline";
-  }
+  #ifdef debug
+  Serial.println ("Buffer space : " + buffer_space);
+  #endif
 }
 
 void check_page_size() {
@@ -72,116 +90,152 @@ void check_page_size() {
     }
     ps = s.read (); // reset byte value
   }
+    #ifdef debug
+  Serial.println ("Page size : " + page_size);
+  #endif
 }
 
-void handleHome() {
-  File wsHomeFile = LittleFS.open("/wsHome.html", "r");
-  server.streamFile(wsHomeFile, "text/html");
-  wsHomeFile.close();
+void handleHome (AsyncWebServerRequest *request) {
+  request->send (LittleFS, "/wsHome.html");
 }
-
-void handlePrint() {
-  if (server.hasArg("plain") == false) {      // Check if body received
-    File wsHomeFile = LittleFS.open("/wsHome.html", "r");
-    server.streamFile(wsHomeFile, "text/html");
-    wsHomeFile.close();
+void handlePrint (AsyncWebServerRequest *request) { //receive message,serve printing site
+  if (request->hasParam ("text", true) == false) { // Check if body received   
+    request->send (LittleFS, "/wsHome.html");
     return;
   }
 
   check_status();
   if (status == "offline") {
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();
+    error_message = " Plotter <br> not <br> connected";
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug 
+    Serial.println (" Plotter not connected");
+    #endif
   }
   else if (status == "0") {
-    //    error_message = " Plotter <br> in action <br> Wait !";
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();   
-  }      
-  else if (status == "8") {
-    String message = server.arg("plain");
-    message.replace("%2C", ",");
-    message.replace("%3B", ";");
-    message.replace("LB", "SI0.5,0.5;CP-0.5,-0.5;DTX;LBX");
-
-    if (message.substring(5, 16) =="LINEDRAWING" && message.length() > 100) { // check header - if it's correct, send hpgl via serial:
-      message.replace("text=LINEDRAWING-","IN;PS4;IP2520,1061,8520,7061;SC0,1000,0,1000;SP1;VS20;PU-90,-90;EA1090,1090;PU-90,-90;EA1090,1090;PU-80,-80;EA1080,1080;"); // new HPGL header
-
-      File wsPrintFile = LittleFS.open("/wsPrint.html", "r");
-      server.streamFile(wsPrintFile, "text/html");    // serve thank you message
-      wsPrintFile.close();
-
-      for (int i = 0; i < message.length();i += 40) {     // send coordinates in blocks
-        buffer_state = digitalRead(buffer_pin);
-        if (buffer_state == 0) {
-          s.print(message.substring(i, i + 40));
-        } 
-        else {         
-          delay(6000);
-          s.print(message.substring(i, i + 40));                
-        }
-      }
-      s.print("PU-10,-10;EA1010,1010;VS;PU-75,500;SI0.5,0.75;DI0,1;CP-7.5,0.5;DT!;LBDRAW SOMETHING !;PU1200,0;DI0,1;CP0,0.5;SI0.2,0.3;DI0,1;CP1,0;DT.;LBxx PLUG 'n' PLOT by Jason xx.SP0;PU1250,1050;IN;"); // add end note
-    } 
-    else {
-      File wsDrawErrorFile = LittleFS.open("/wsDrawError.html", "r");
-      server.streamFile(wsDrawErrorFile, "text/html");
-      wsDrawErrorFile.close();
-    }
+    error_message = " Plotter <br> in action <br> Wait !";
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println (" Plotter in action");
+    #endif
   }
+  else if (status == "8") {
+    #ifdef debug
+    Serial.println ("Plotter is ready and waiting");
+    #endif
+    AsyncWebParameter *p = request->getParam ("text", true);
+    String message = p->value ().c_str ();
+    message.replace ("%2C", ",");
+    message.replace ("%3B", ";");
+    message.replace ("LB", "SI0.5,0.5;DTELBXE");
+
+    if (message.substring (0, 11) == "LINEDRAWING" && message.length () > 100) {  // check header - if it's correct, send hpgl via serial:        
+      message.replace ("LINEDRAWING-","IN;PS4;SC0,1000,0,1000;SP1"); // new HPGL header               
+      request->send (LittleFS, "/wsPrint.html");
+
+      check_buffer_size ();      
+    for (int i = 0; i < message.length () ; i += 20) { // send coordinates in blocks of 80                  
+      check_buffer_space();                    
+      if (buffer_space.toInt () > buffer_size.toInt () * 0.5) { // if bufferspace is les that 20% of total
+        s.print (message.substring (i, i + 20));
+      }
+        else {
+          #ifdef debug
+          Serial.println ("Delay ");
+          #endif
+
+// ----- NEED A DELAY FUNCNTION THAT WORKS WITH ESPASYNCWEBSERVER HERE
+           
+          // int timeout = 0  ;
+          // while (timeout <200000) { 
+          //   ++timeout ;
+          //   if (timeout == 200000) { 
+          //     Serial.println (timeout);         
+              s.print (message.substring (i, i + 80));
+
+        //     }
+        //  }
+        } 
+        s.print ("PU;PU1000,1000;IN;"); // add end note
+      }
+    }
+    else {
+      error_message = "DRAW SOMETHING <br> FIRST!";
+      request->send (LittleFS, "/wsError.html", String (), false, processor);
+      #ifdef debug
+      Serial.write ( "No lines drawn");
+      #endif
+    }   
+  } 
   else if (status == "16") {
-    //   error_message = "Plot paused <br> with <br> view button";
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();   
+    error_message = "Plot paused <br> with <br> view button";
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println ("Plot paused with view button");
+    #endif
+    status = "";
+    error_message = "";
   }
   else if (status == "24") {
-    //    error_message = ("View button <br> pressed");
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();     
+    error_message = ("View button <br> pressed");
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println ("View button pressed");
+    #endif
+    status = "";
+    error_message = "";
   }
   else if (status == "32") {
-    //    error_message = "Buffer <br> has info,<br> paper <br> not <br> loaded";
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();     
-  } 
-  else if (status == "40") {
-    //    error_message = "Paper <br> not <br> loaded";
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();   
-  } 
-  else {
-    //    error_message = ("Unknown status <br>" + status);
-    File wsPlotterErrorFile = LittleFS.open("/wsPlotterError.html", "r");
-    server.streamFile(wsPlotterErrorFile, "text/html");
-    wsPlotterErrorFile.close();     
-  }     
-}
-
-void setup() {
-
-  s.begin(9600);
-  s.print("IN;"); 
-
-  if (!LittleFS.begin()) {   // Initialize LittleFS
-  return;
+    error_message = "Buffer <br> has info,<br> paper <br> not <br> loaded";
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println ("Buffer has info, paper not loaded");
+    #endif
+    status = "";
+    error_message = "";
   }
-  pinMode(buffer_pin, INPUT);
+  else if (status == "40") {
+    error_message = "Paper <br> not <br> loaded";
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println ("Buffer is empty, paper not loaded");
+    #endif
+    status = "";
+    error_message = "";
+  }
+  else {
+    error_message = ("Unknown status <br>" + status);
+    request->send (LittleFS, "/wsError.html", String (), false, processor);
+    #ifdef debug
+    Serial.println ("Status unknown: " + status);
+    #endif
+    status = "";
+    error_message = "";
+  }
+} 
+ 
+void setup () {
+  s.begin (9600);      // open serial connection to plotter
+  Serial.begin (9600); //  open serial for debug  
+  s.print ("IN;"); // reset plotter after start up serial junk
+
+  if (!LittleFS.begin ()) { // Initialize LittleFS   
+    #ifdef debug
+    Serial.println ("An Error has occurred while mounting LittleFS");
+    #endif
+    return;
+  } 
+  
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   WiFi.softAP("DRAW ME!");
   dnsServer.start(DNS_PORT, "*", apIP);
-  server.onNotFound(handleHome);
-  server.on("/", handleHome);
-  server.on("/print", handlePrint);
-  server.begin();
+
+  server.onNotFound (handleHome);
+  server.on ("/", HTTP_ANY, handleHome);
+  server.on ("/print", HTTP_ANY, handlePrint);
+  server.begin ();
 }
 
-void loop() {
-  // ................................................... webserver
-  server.handleClient();
-  dnsServer.processNextRequest();
+void loop () {
+  dnsServer.processNextRequest ();
 }
