@@ -1,0 +1,39 @@
+<html>
+<meta name='theme-color' content='#00cccc' />
+<meta http-equiv='content-type' content='text/html; charset=utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />
+<meta name='HandheldFriendly' content='true' />
+<style>
+  body {
+    background-color: yellow;
+    margin: 0;
+    padding: 0;
+    font-family: monospace;
+  }
+
+  #headline {
+    position: absolute;
+    color: black;
+    text-align: center;
+  }
+</style>
+<script type='text/javascript'>
+  var size;
+  function layout() {
+    var sW = window.innerWidth;
+    var sH = window.innerHeight;
+    if (sW < sH) { size = sW * .9; } else { size = sH * .6; }
+    var left = sW / 2 - size / 2;
+    hea = document.getElementById('headline');
+    hea.style.width = sW;
+    hea.style.left = 0;
+    hea.style.top = sH * .45;
+    hea.style.fontSize = size * .08 + 'px';
+  }
+</script>
+
+<body onload='layout()' onresize='layout()'>
+  <div id='headline'>THANK YOU!</div>
+</body>
+
+</html>

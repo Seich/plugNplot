@@ -1,0 +1,6 @@
+{
+  "C_Cpp.clang_format_style": "GNU",
+  "editor.formatOnSave": false,
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false
+}
