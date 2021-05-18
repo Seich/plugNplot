@@ -113,17 +113,21 @@ void handlePrint() {
       server.streamFile(wsPrintFile, "text/html");    // serve thank you message
       wsPrintFile.close();
 
-      for (int i = 0; i < message.length();i += 40) {     // send coordinates in blocks
-        buffer_state = digitalRead(buffer_pin);
-        if (buffer_state == 0) {
-          s.print(message.substring(i, i + 40));
-        } 
-        else {         
-          delay(6000);
-          s.print(message.substring(i, i + 40));                
+      check_buffer_size ();
+      for (int i = 0; i < message.length () ; i += 20) { 
+      int bufferfull = 1;
+      while (bufferfull) {
+        check_buffer_space();                    
+          if (buffer_space.toInt () > buffer_size.toInt () * 0.5) {
+          bufferfull = 0;
+        } else 
+        {
+          delay(3000);
         }
       }
-      s.print("PU-10,-10;EA1010,1010;VS;PU-75,500;SI0.5,0.75;DI0,1;CP-7.5,0.5;DT!;LBDRAW SOMETHING !;PU1200,0;DI0,1;CP0,0.5;SI0.2,0.3;DI0,1;CP1,0;DT.;LBxx PLUG 'n' PLOT by Jason xx.SP0;PU1250,1050;IN;"); // add end note
+      s.print(message.substring(i, i + 20)); 
+      }
+      s.print("SP0;PU1250,1050;IN;"); // add end note
     } 
     else {
       File wsDrawErrorFile = LittleFS.open("/wsDrawError.html", "r");
