@@ -1,392 +1,287 @@
-<!DOCTYPE html>
 <html>
-<head>
-	<meta charset="utf-8">
-	<meta http-equiv="content-type" content="text/html; charset=utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-	<title>Draw!</title>
-	<style>
+<meta name='theme-color' content='#cccc00' />
+<meta http-equiv='content-type' content='text/html; charset=utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />
+<meta name='HandheldFriendly' content='true' />
+<style>
+  body {
+    background-color: #72e0d1;
+    font-family: monospace;
+  }
 
-	/* ---- clean css ---- */
-		
-		*, body, div, dl, dt, dd, ul, ol, li, 
-		h1, h2, h3, h4, h5, h6, pre, form,
-		fieldset, input, textarea, p, th,
-		td, blockquote {
-		   margin: 0px;
-		   padding: 0px;
-		   box-sizing: border-box;
-		}
-		
-		fieldset, img { 
-		   border: 0; 
-		}
-		
-		/* ---- page css ---- */
-		
-		html {
-			margin: 0;
-			padding: 0;
-			height: 100%;
-			font: 11px "Tahoma";
-		}
-		
-		body {
-			margin: 0px; 
-			padding: 0px;
-			height: 100%;
-			width: 100%;
-			background:  rgb(102, 148, 179) 100%;
+  #headline {
+    position: absolute;
+    color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-		}		
+  #can {
+    position: absolute;
+    border-radius: 10px;
+    border: solid 3px;
+    touch-action: none;
+  }
 
-		/* have to add up to 100% duh */
-		header { height: 15%; }
-		#canvas { height: 60%; }
-		#progress { height: 10%; }
-		nav { height: 15%; }
+  #clear {
+    position: absolute;
+    background-color: #f5d67b;
+    color: black;
+    cursor: pointer;
+    border: solid 3px;
+    border-radius: 10px;
+    margin: 0px;
+  }
 
-		main {
-			display: flex;
-			flex-direction: column;
-			align-content: center;
-			height: 100%;
-		}
+  #print {
+    position: absolute;
+    background-color: #fa8c59;
+    color: black;
+    cursor: pointer;
+    border: solid 3px;
+    border-radius: 10px;
+    margin: 0px;
+  }
 
-		main > * {
-			display: flex;
-    		justify-content: center;
-    		padding: 3Vmin 3Vmin;
-		}
+  #memUse {
+    position: absolute;
+    background-color: white;
+    color: black;
+    padding-top: 3px;
+    border: solid 3px;
+    border-radius: 10px;
+  }
 
-		header {
-			align-items: center;
-		}
+  #memUseBar {
+    position: absolute;
+    background-color: rgba(0, 255, 255, .5);
+    padding: 0px 5px 3px 5px;
+    border: solid 3px;
+    border-width: 3px 3px 3px 3px;
+    border-radius: 10px;
+  }
 
-		header h1 {
-			font-size: 5.2vmin ;
-			background: white;
-			padding: 3vmin;
-			border: .4vmin dashed #8C8C8C;
-			transform: rotate(5deg);
-		}
+  #printForm {
+    display: none;
+    position: absolute;
+    top: 100vh;
+    width: 100%;
+    height: 100%;
+    overflow-wrap: anywhere;
+  }
+</style>
+<script type='text/javascript'>
+  var canvas, ctx,
+    pX = 0,
+    x = 0,
+    pY = 0,
+    y = 0,
+    draw = false,
+    drawDot = false;
+  var maxLines = 1000;
+  var xLog = [];
+  var yLog = [];
+  var size;
+  var yOffset = 0;
+  var mode = 'up';
+  var val;
+  function layout() {
+    var sW = window.innerWidth;
+    var sH = window.innerHeight;
+    if (sW < sH) {
+      size = sW * .9;
+      yOffset = (sH - size * 1.6) / 4;
+      if (size * 1.7 + yOffset > sH) {
+        size = 0.5 * sH;
+        yOffset = (sH - size * 1.6) / 4;
+      }
+    } else {
+      size = sH * .6;
+      yOffset = 0;
+    }
+    var left = sW / 2.03 - size / 2;
+    hea = document.getElementById('headline');
+    hea.style.width = size;
+    hea.style.left = left;
+    hea.style.height = size * .2 + yOffset;
+    hea.style.fontSize = size * .1 + 'px';
+    canvas = document.getElementById('can');
+    ctx = canvas.getContext('2d');
+    ctx.canvas.width = size;
+    ctx.canvas.height = size;
+    ctx.canvas.style.left = left;
+    ctx.canvas.style.top = size * .2 + yOffset;
+    mUs = document.getElementById('memUse');
+    mUs.style.width = size;
+    mUs.style.height = size * .08;
+    mUs.style.left = left;
+    mUs.style.top = size * 1.3 + yOffset;
+    mUs.style.fontSize = size * .06 + 'px';
+    mUs.innerText = 'MEMORY:' + Math.round(xLog.length * 100 / maxLines) + '%';
+    mUB = document.getElementById('memUseBar');
+    mUB.style.width = size * xLog.length / maxLines;
+    mUB.style.height = size * .08;
+    mUB.style.left = left;
+    mUB.style.top = size * 1.3 + yOffset;
+    clr = document.getElementById('clear');
+    clr.style.width = size * .45;
+    clr.style.height = size * .2;
+    clr.style.left = left;
+    clr.style.top = size * 1.5 + yOffset;
+    clr.style.fontSize = size * .06 + 'px';
+    prn = document.getElementById('print');
+    prn.style.width = size * .45;
+    prn.style.height = size * .2;
+    prn.style.left = left + size - size * .45;
+    prn.style.top = size * 1.5 + yOffset;
+    prn.style.fontSize = size * .06 + 'px';
+    w = canvas.width;
+    h = canvas.height;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.fillRect(1, 1, w - 1, h - 1);
+    ctx.stroke();
+    for (var i = 0; i < xLog.length - 1; i += 2) {
+      ctx.beginPath();
+      ctx.moveTo(xLog[i] * size, yLog[i] * size);
+      ctx.lineTo(xLog[i + 1] * size, yLog[i + 1] * size);
+      ctx.stroke();
+    }
+  }
+  function init() {
+    document.getElementById('printForm').value = 'LINEDRAWING-';
+    layout();
+    canvas.addEventListener('touchmove', function (e) {
+      action('move', e)
+    }, false);
+    canvas.addEventListener('touchstart', function (e) {
+      action('down', e)
+    }, false);
+    canvas.addEventListener('touchend', function (e) {
+      action('up', e)
+    }, false);
+    canvas.addEventListener('mouseout', function (e) {
+      action('out', e)
+    }, false);
+  }
+  function action(res, e) {
+    if (res == 'up' || res == 'out') {
+      if (mode === 'down') {
+        mode = 'up';
+        val += ';PU';
+      }
+      if (drawDot && xLog.length < maxLines - 4) {
+        ctx.beginPath();
+        ctx.moveTo(x - 2, y - 2);
+        ctx.lineTo(x + 2, y + 2);
+        ctx.stroke();
+        xLog.push((x - 2) / size);
+        xLog.push((x + 2) / size);
+        yLog.push((y - 2) / size);
+        yLog.push((y + 2) / size);
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 2);
+        ctx.lineTo(x - 2, y + 2);
+        ctx.stroke();
+        xLog.push((x + 2) / size);
+        xLog.push((x - 2) / size);
+        yLog.push((y - 2) / size);
+        yLog.push((y + 2) / size);
+        xa = Math.round((x - 2) / size * 999);
+        ya = Math.round((y - 2) / size * 999);
+        xb = Math.round((x + 2) / size * 999);
+        yb = Math.round((y + 2) / size * 999);
+        if (xa < 0) { xa = 0; }
+        if (xb < 0) { xb = 0; }
+        if (ya < 0) { ya = 0; }
+        if (yb < 0) { yb = 0; }
+        if (xa > 999) { xa = 999; }
+        if (xb > 999) { xb = 999; }
+        if (ya > 999) { ya = 999; }
+        if (yb > 999) { yb = 999; }
+        document.getElementById('printForm').value += ';PU' + yb + ',' + xb + ';LB';
+        mUs.innerText = 'MEMORY:' + Math.round(xLog.length * 100 / maxLines) + '%';
+        mUB.style.width = (xLog.length / maxLines * size) - 10 + 'px';
+      }
+      draw = false;
+      drawDot = false;
+    }
+    var distance = 0;
+    if (res == 'move') {
+      drawDot = false;
+      var xNew = event.touches[0].clientX - canvas.offsetLeft;
+      var yNew = event.touches[0].clientY - canvas.offsetTop;
+      distance = Math.sqrt((Math.abs((xNew - x)) ^ 2 + Math.abs((yNew - y)) ^ 2));
+      if (distance > 2) {
+        pX = x;
+        pY = y;
+        x = xNew;
+        y = yNew;
+      }
+    }
+    if (draw && distance > 2 && xLog.length < maxLines - 2) {
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(pX, pY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      xLog.push(pX / size);
+      xLog.push(x / size);
+      yLog.push(pY / size);
+      yLog.push(y / size);
+      xa = Math.round(pX / size * 999);
+      ya = Math.round(pY / size * 999);
+      xb = Math.round(x / size * 999);
+      yb = Math.round(y / size * 999);
+      if (xa < 0) { xa = 0; }
+      if (xb < 0) { xb = 0; }
+      if (ya < 0) { ya = 0; }
+      if (yb < 0) { yb = 0; }
+      if (xa > 999) { xa = 999; }
+      if (xb > 999) { xb = 999; }
+      if (ya > 999) { ya = 999; }
+      if (yb > 999) { yb = 999; }
+      val = document.getElementById('printForm').value;
+      if (mode === 'up') {
+        mode = 'down';
+        val += ';PU' + ya + ',' + xa + ';PD';
+      } else {
+        val += ',';
+      }
+      val += yb + ',' + xb;
+      document.getElementById('printForm').value = val;
+      mUs.innerText = 'MEMORY:' + Math.round(xLog.length * 100 / maxLines) + '%';
+      mUB.style.width = (xLog.length / maxLines * size) - 10 + 'px';
+    }
+    if (res == 'down') {
+      draw = true;
+      x = event.touches[0].clientX - canvas.offsetLeft;
+      y = event.touches[0].clientY - canvas.offsetTop;
+      drawDot = true;
+    }
+  }
+  function empty() {
+    document.getElementById('printForm').value = 'LINEDRAWING-';
+    while (xLog.length > 0) {
+      xLog.pop();
+      yLog.pop();
+    }
+    layout();
+  }
+</script>
 
-		#canvas {			
-			align-items: center;
-			z-index: 2;
-		}
-			/*--- https://www.base64-image.de/ ---*/
-		canvas {
-			background-image:  url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0ic3ZnOCIgd2lkdGg9IjIwMG1tIiBoZWlnaHQ9IjIwMG1tIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCAyMDAgMjAwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOmNjPSJodHRwOi8vY3JlYXRpdmVjb21tb25zLm9yZy9ucyMiIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48bWV0YWRhdGEgaWQ9Im1ldGFkYXRhNSI+PHJkZjpSREY+PGNjOldvcmsgcmRmOmFib3V0PSIiPjxkYzpmb3JtYXQ+aW1hZ2Uvc3ZnK3htbDwvZGM6Zm9ybWF0PjxkYzp0eXBlIHJkZjpyZXNvdXJjZT0iaHR0cDovL3B1cmwub3JnL2RjL2RjbWl0eXBlL1N0aWxsSW1hZ2UiLz48ZGM6dGl0bGUvPjwvY2M6V29yaz48L3JkZjpSREY+PC9tZXRhZGF0YT48ZyBpZD0ibGF5ZXIxIj48cmVjdCBpZD0icmVjdDgzMyIgeD0iLTEuMDY1OGUtMTQiIHk9IjcuNjI5NGUtNiIgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmY2Y5ZjIiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiM4N2NkZGUiIHN0cm9rZS13aWR0aD0iLjI2NDU4cHgiPjxwYXRoIGlkPSJwYXRoODM1IiBkPSJtMTcuOTc4IDE3LjkxMWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODM3IiBkPSJtMTcuOTc4IDI3Ljk2MWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODM5IiBkPSJtMTcuOTc4IDM4LjAxMWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODQxIiBkPSJtMTcuOTc4IDQ4LjA2aDE2My45MXYwLjc3NTA2Ii8+PHBhdGggaWQ9InBhdGg4NDMiIGQ9Im0xNy45NzggNTguMTFoMTYzLjkxdjAuNzc1MDYiLz48cGF0aCBpZD0icGF0aDg0NSIgZD0ibTE3Ljk3OCA2OC4xNmgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODQ3IiBkPSJtMTcuOTc4IDc4LjIxaDE2My45MXYwLjc3NTA2Ii8+PHBhdGggaWQ9InBhdGg4NDkiIGQ9Im0xNy45NzggODguMjZoMTYzLjkxdjAuNzc1MDYiLz48cGF0aCBpZD0icGF0aDg1MSIgZD0ibTE3Ljk3OCA5OC4zMWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODUzIiBkPSJtMTcuOTc4IDEwOC4zNmgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODU1IiBkPSJtMTcuOTc4IDExOC40MWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODc3IiBkPSJtMTcuOTc4IDEyOC40NmgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODc5IiBkPSJtMTcuOTc4IDEzOC41MWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODgxIiBkPSJtMTcuOTc4IDE0OC41NmgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODgzIiBkPSJtMTcuOTc4IDE1OC42MWgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODg1IiBkPSJtMTcuOTc4IDE2OC42NmgxNjMuOTF2MC43NzUwNiIvPjxwYXRoIGlkPSJwYXRoODg3IiBkPSJtMTcuOTc4IDE3OC43MWgxNjMuOTF2MC43NzUwNSIvPjwvZz48L2c+PC9zdmc+Cg==');
-			background-size: cover;
-			background-repeat: no-repeat;
-			background-position: center center;
-		}
-
-		#progressContainer {
-			height: 4vmin;
-			width: 100%;
-			background: #d1d1d1;
-			position: relative;
-		}
-
-		#progressBar {
-			background-color: #91ace5;
-			height: 4vmin;
-			background-size: auto 10vmin;
-			width: 0;
-		}
-
-		#progressPercent {
-			width: 100%;
-			height: 100%;
-			position: absolute;
-			align-items: center;
-			display: flex;
-			justify-content: center;
-			font-size: 3.5vmin;
-			color: #ffffff;
-		}
-
-		form {
-			display: none;
-		}
-
-		nav {
-			padding: 0 0 1vmin 0;
-		}
-
-		nav li {
-			display: flex;
-    		justify-content: center;
-			align-items: center;
-			float: left;
-			width: 48%;
-			height: 100%;
-			border: 1vmin solid white;
-			border-radius: 1Vmin;
-			background: #dedede;
-			font-size: 5vmin;
-			font-weight: bold;
-			color: #ffffff;
-			text-shadow: 0.2vmin 0.2vmin 0px rgba(0,0,0,.3);
-		}
-
-		nav li:first-child {
-			margin-right: 4%;
-			background: #ad8080;
-			border-radius: 1Vmin;
-		}
-
-		nav li:last-child {
-			background: #80ad84;
-			border-radius: 1Vmin;
-		}
-
-
-	</style>
-</head>
-<body>
-
-	<main>
-		
-		<header>
-			<h1>DRAW SOMETHING!</h1>
-		</header>
-
-		<section id="canvas">
-			<div id="canvasContainer">
-				<canvas></canvas>
-			</div>
-		</section>
-
-		<section id="progress">
-			<div class="container">
-				<div id="progressContainer">
-					<div id="progressPercent"></div>
-					<div id="progressBar"></div>
-				</div>				
-			</div>
-		</section>
-
-		<nav>
-			<ul class="containerFit">
-				<li id="delete">Delete</li>
-				<li id="print">Print</li>
-			</ul>
-		</nav>
-
-		<form action="/print" method="POST" autocomplete="off">
-			<textarea name="text" id="printForm"></textarea>
-		</form>
-
-	</main>
-
-	<script>
-
-		var canvasSize = 0
-		var elemSize = 0
-		const canvas = document.querySelector('canvas'),
-			ctx = canvas.getContext('2d');
-			canvasContainer = document.querySelector('#canvasContainer'),
-			progressBar = document.querySelector('#progressBar'),
-			progressPercent = document.querySelector('#progressPercent');
-
-		const border = 10, lineWidth = 2;
-
-		var pX = 0,
-			x = 0,
-			pY = 0,
-			y = 0,
-			draw = false,
-			drawDot = false;
-		var maxLines = 1000;
-		var xLog = [];
-		var yLog = [];
-		var size;
-		var yOffset = 0;
-		var mode = 'up';
-		var val;
-
-		canvas.addEventListener('mousemove', function (e) { action('move', { x: e.clientX, y: e.clientY }) });	
-		canvas.addEventListener('mousedown', function (e) { action('down', { x: e.clientX, y: e.clientY }) });	
-		canvas.addEventListener('mouseup', function (e) { action('up', { x: e.clientX, y: e.clientY }) });	
-		canvas.addEventListener('mouseout', function (e) { action('out', { x: e.clientX, y: e.clientY }) });		
-
-		canvas.addEventListener('touchmove', function (e) { action('move', { x: e.touches[0].clientX, y: e.touches[0].clientY } ); });
-		canvas.addEventListener('touchstart', function (e) { action('down', { x: e.touches[0].clientX, y: e.touches[0].clientY }); });
-		canvas.addEventListener('touchend', function (e) { action('up', {}); });
-		canvas.addEventListener('touchcancel', function (e) { action('out', { x: e.touches[0].clientX, y: e.touches[0].clientY }); });
-
-		document.getElementById('delete').addEventListener('click', function() {
-			document.getElementById('printForm').value = 'LINEDRAWING-';
-			xLog = [], yLog = [];
-			progressBar.style.width = '0';
-			progressPercent.innerText = 'Memory: 0%';
-			drawUI();		
-		});
-
-		document.getElementById('print').addEventListener('click', function() {
-			
-			date = new Date();
-			d = String(date.getDate()).padStart(2, '0');
-			m = String(date.getMonth() + 1).padStart(2, '0'); 
-			y = date.getFullYear();
-
-			document.getElementById('printForm').value += ` DATE ${d}-${m}-${y}`;
-			document.querySelector('form').submit(); 	
-
-		});
-
-		function drawAndLog(from, to) {
-
-			ctx.lineWidth = lineWidth;
-			ctx.beginPath();
-			ctx.moveTo(from[0], from[1]);
-			ctx.lineTo(to[0], to[1]);
-			ctx.stroke();
-
-			xLog.push(from[0] / size);
-			xLog.push(to[0] / size);
-			yLog.push(from[1] / size);
-			yLog.push(to[1] / size);	
-
-		}
-
-		function limitBounds(coordinates) {
-
-			for(var i in coordinates) {
-				coordinates[i] = Math.min(Math.max(coordinates[i], 0), 999);
-			}
-
-			return coordinates;
-		}
-
-		function action(res, e) {
-			if (res == 'up' || res == 'out') {
-				if (mode === 'down') {
-					mode = 'up';
-					val += ';PU';
-				}
-				if (drawDot && xLog.length < maxLines - 4) {
-
-					drawAndLog([x-2, y-2], [x+2, y+2]);
-					drawAndLog([x+2, y-2], [x-2, y+2]);
-
-					coordinates = limitBounds({
-						xa: Math.round((x - 2) / size * 999),
-						ya: Math.round((y - 2) / size * 999),
-					});
-
-					document.getElementById('printForm').value += ';PU' + coordinates.ya + ',' + coordinates.xa + ';LB';
-					
-					percent = xLog.length * 100 / maxLines;
-					progressBar.style.width = percent + '%';
-					progressPercent.innerText = ('Memory: ' + Math.round(percent) + '%');
-				}
-				draw = false;
-				drawDot = false;
-			}
-			var distance = 0;
-			if (res == 'move') {
-				drawDot = false;
-				var xNew = e.x - canvas.offsetLeft;
-				var yNew = e.y - canvas.offsetTop;
-				distance = Math.sqrt((Math.abs((xNew - x)) ^ 2 + Math.abs((yNew - y)) ^ 2));
-				if (distance > 2) {
-					pX = x;
-					pY = y;
-					x = xNew;
-					y = yNew;
-				}
-			}
-			if (draw && distance > 2 && xLog.length < maxLines - 2) {
-
-				drawAndLog([pX, pY], [x, y]);
-
-				coordinates = limitBounds({
-					xa: Math.round(pX / size * 999),
-					ya: Math.round(pY / size * 999),
-					xb: Math.round(x / size * 999),
-					yb: Math.round(y / size * 999)
-				});
-
-				val = document.getElementById('printForm').value;
-				if (mode === 'up') {
-					mode = 'down';
-					val += ';PU' + coordinates.ya + ',' + coordinates.xa + ';PD';
-				} else {
-					val += ',';
-				}
-				val += coordinates.yb + ',' + coordinates.xb;
-				document.getElementById('printForm').value = val;
-
-				percent = xLog.length * 100 / maxLines;
-				progressBar.style.width = percent + '%';
-				progressPercent.innerText = 'Memory: ' + Math.round(percent) + '%';
-			}
-			if (res == 'down') {
-				draw = true;
-				x = e.x - canvas.offsetLeft;
-				y = e.y - canvas.offsetTop;
-				drawDot = true;
-			}
-		}
-
-		var drawUI = (function f(launch) { 
-			
-			maxHeight = document.querySelector('#canvas').clientHeight;
-			trueSize = ((document.body.scrollWidth < maxHeight) ? document.body.scrollWidth : maxHeight);			
-
-			canvasContainer.style.width = trueSize + 'px';
-			canvasContainer.style.height = trueSize + 'px';
-
-			size = canvasContainer.clientHeight - border * 2;	
-
-			ctx.canvas.width = size;
-			ctx.canvas.height = size;	
-
-			var containers = document.getElementsByClassName('container');
-			for(var i = 0; i < containers.length; i++) {
-				containers[i].style.width = size + 'px';
-			}
-
-			var containerFit = document.getElementsByClassName('containerFit');
-			for(var i = 0; i < containerFit.length; i++) {
-				containerFit[i].style.width = trueSize + 'px';
-			}
-
-			ctx.lineWidth = lineWidth;
-			for (var i = 0; i < xLog.length - 1; i += 2) {
-				ctx.beginPath();
-				ctx.moveTo(xLog[i] * size, yLog[i] * size);
-				ctx.lineTo(xLog[i + 1] * size, yLog[i + 1] * size);
-				ctx.stroke();
-			}
-
-			if(launch) {
-
-				buttons = document.querySelectorAll('nav li');
-				for(var i = 0; i < buttons.length; i++) {
-					buttons[i].style.border = border + 'px solid white';
-				}
-
-				canvasContainer.style.padding = border + 'px';
-				canvas.style.boxShadow = '0 0 0px '+border+'px white, 2px 2px 2px '+border+'px rgba(0,0,0,0.2)';
-				progressBar.parentElement.style.boxShadow = '0 0 0px '+border+'px white, 2px 2px 2px '+border+'px rgba(0,0,0,0.2)';
-
-				document.getElementById('printForm').value = '';
-				progressPercent.innerText = '0%';
-			}
-
-			return f; 
-		})('launch')
-		
-		window.addEventListener('resize', function(e) {
-			drawUI()
-		}, true);
-
-	</script>
-	
+<body onload='init()' onresize='layout()'>
+  <div id='headline'>DRAW SOMETHING!</div>
+  <canvas id='can'></canvas>
+  <input type='button' value='DELETE' id='clear' onclick='empty()'>
+  <form action='/print' method='POST' autocomplete='off'>
+    <textarea name='text' autofocus id='printForm'></textarea>
+    <input type='submit' id='print' value='PRINT' />
+  </form>
+  <div id='memUse'></div>
+  <div id='memUseBar'></div>
 </body>
+
 </html>
